@@ -68,7 +68,7 @@ Contributions are welcome! Please feel free to submit a Pull Request after infor
 
 ## License
 
-This a priavte project and using the code is subject to .
+This is a private project and using the code is subject to obtaining express written permission from the owner. All unauthorized use is strictly prohibited. For more information or to request permission, please contact the owner.
 
 ## Citation
 
