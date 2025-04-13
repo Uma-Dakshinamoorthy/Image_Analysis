@@ -64,11 +64,11 @@ The `notebooks` directory contains Jupyter notebooks demonstrating analysis work
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request after informing via email.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This a priavte project and using the code is subject to .
 
 ## Citation
 
@@ -83,3 +83,7 @@ If you use this software in your research, please cite:
   url = {https://github.com/yourusername/image-processing-napari}
 }
 ```
+Modules:
+The following module have been used in this code implementation
+
+https://neubias.github.io/training-resources/all-modules/
