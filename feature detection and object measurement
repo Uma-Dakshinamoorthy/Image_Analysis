@@ -1,0 +1,228 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from skimage import io, filters, feature, measure, morphology, segmentation, color
+from scipy import ndimage as ndi
+import pandas as pd
+
+def detect_blobs(img, min_sigma=1, max_sigma=30, num_sigma=10, threshold=0.05):
+    """
+    Detect blobs in an image using Laplacian of Gaussian.
+    Returns coordinates and sizes of detected blobs.
+    """
+    # Convert to grayscale if needed
+    if img.ndim == 3 and img.shape[2] == 3:
+        gray_img = color.rgb2gray(img)
+    else:
+        gray_img = img.copy()
+    
+    # Detect blobs
+    blobs = feature.blob_log(
+        gray_img, 
+        min_sigma=min_sigma, 
+        max_sigma=max_sigma, 
+        num_sigma=num_sigma, 
+        threshold=threshold
+    )
+    
+    # Convert the third column (sigma) to radius
+    blobs[:, 2] = blobs[:, 2] * np.sqrt(2)
+    
+    return blobs
+
+def visualize_blobs(img, blobs):
+    """Visualize detected blobs on the original image."""
+    # Create a figure
+    fig, ax = plt.subplots(figsize=(10, 10))
+    
+    # Show the image
+    if img.ndim == 3 and img.shape[2] == 3:
+        ax.imshow(img)
+    else:
+        ax.imshow(img, cmap='gray')
+    
+    # Plot circles for each blob
+    for blob in blobs:
+        y, x, r = blob
+        c = plt.Circle((x, y), r, color='red', linewidth=1, fill=False)
+        ax.add_patch(c)
+    
+    ax.set_title(f'Detected Blobs: {len(blobs)}')
+    ax.set_axis_off()
+    plt.tight_layout()
+    plt.show()
+
+def detect_corners(img, min_distance=5, threshold_rel=0.02):
+    """Detect corners in an image using Harris corner detector."""
+    # Convert to grayscale if needed
+    if img.ndim == 3 and img.shape[2] == 3:
+        gray_img = color.rgb2gray(img)
+    else:
+        gray_img = img.copy()
+    
+    # Detect corners
+    corners = feature.corner_harris(gray_img)
+    corners = feature.corner_peaks(corners, min_distance=min_distance, threshold_rel=threshold_rel)
+    
+    return corners
+
+def visualize_corners(img, corners):
+    """Visualize detected corners on the original image."""
+    # Create a figure
+    fig, ax = plt.subplots(figsize=(10, 10))
+    
+    # Show the image
+    if img.ndim == 3 and img.shape[2] == 3:
+        ax.imshow(img)
+    else:
+        ax.imshow(img, cmap='gray')
+    
+    # Plot corners
+    ax.plot(corners[:, 1], corners[:, 0], 'r+', markersize=10)
+    
+    ax.set_title(f'Detected Corners: {len(corners)}')
+    ax.set_axis_off()
+    plt.tight_layout()
+    plt.show()
+
+def segment_and_measure_objects(img, threshold_method='otsu', min_size=100):
+    """Segment image and measure properties of detected objects."""
+    # Convert to grayscale if needed
+    if img.ndim == 3 and img.shape[2] == 3:
+        gray_img = color.rgb2gray(img)
+    else:
+        gray_img = img.copy()
+    
+    # Apply threshold
+    if threshold_method == 'otsu':
+        thresh = gray_img > filters.threshold_otsu(gray_img)
+    elif threshold_method == 'li':
+        thresh = gray_img > filters.threshold_li(gray_img)
+    else:
+        thresh = gray_img > filters.threshold_isodata(gray_img)
+    
+    # Remove small objects and fill holes
+    cleaned = morphology.remove_small_objects(thresh, min_size=min_size)
+    filled = ndi.binary_fill_holes(cleaned)
+    
+    # Label connected components
+    labeled_img, num_labels = ndi.label(filled)
+    
+    # Measure properties
+    regions = measure.regionprops(labeled_img, intensity_image=gray_img)
+    
+    # Collect measurements in a dataframe
+    properties = ['label', 'area', 'perimeter', 'centroid', 
+                  'orientation', 'major_axis_length', 'minor_axis_length',
+                  'eccentricity', 'mean_intensity', 'solidity']
+    
+    data = []
+    for region in regions:
+        row = {}
+        for prop in properties:
+            if prop == 'centroid':
+                row['centroid_y'], row['centroid_x'] = region.centroid
+            else:
+                row[prop] = getattr(region, prop)
+        data.append(row)
+    
+    df = pd.DataFrame(data)
+    
+    return labeled_img, df
+
+def visualize_segmentation(img, labeled_img, measurements_df):
+    """Visualize segmentation results and basic measurements."""
+    # Create a figure
+    fig, axes = plt.subplots(1, 2, figsize=(16, 8))
+    
+    # Show original image
+    if img.ndim == 3 and img.shape[2] == 3:
+        axes[0].imshow(img)
+    else:
+        axes[0].imshow(img, cmap='gray')
+    axes[0].set_title('Original Image')
+    axes[0].set_axis_off()
+    
+    # Show labeled image with random colors
+    axes[1].imshow(color.label2rgb(labeled_img, bg_label=0))
+    axes[1].set_title(f'Segmented Objects: {len(measurements_df)}')
+    axes[1].set_axis_off()
+    
+    # Add centroids and labels to the segmented image
+    for idx, row in measurements_df.iterrows():
+        y, x = row['centroid_y'], row['centroid_x']
+        axes[1].plot(x, y, 'r+', markersize=10)
+        axes[1].text(x + 5, y + 5, str(int(row['label'])), color='white', fontsize=12)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Display basic statistics
+    print(f"Total objects detected: {len(measurements_df)}")
+    print("\nSize statistics:")
+    print(f"Mean area: {measurements_df['area'].mean():.2f} pixels")
+    print(f"Min area: {measurements_df['area'].min():.2f} pixels")
+    print(f"Max area: {measurements_df['area'].max():.2f} pixels")
+    
+    # Show a histogram of areas
+    plt.figure(figsize=(10, 6))
+    plt.hist(measurements_df['area'], bins=20, alpha=0.7)
+    plt.xlabel('Object Area (pixels)')
+    plt.ylabel('Frequency')
+    plt.title('Distribution of Object Sizes')
+    plt.tight_layout()
+    plt.show()
+    
+    # Display first few rows of measurements
+    print("\nMeasurements for first few objects:")
+    display_cols = ['label', 'area', 'perimeter', 'major_axis_length', 
+                    'minor_axis_length', 'eccentricity', 'mean_intensity']
+    return measurements_df[display_cols].head()
+
+def extract_texture_features(img, regions):
+    """Extract texture features for each segmented region."""
+    # Convert to grayscale if needed
+    if img.ndim == 3 and img.shape[2] == 3:
+        gray_img = color.rgb2gray(img)
+    else:
+        gray_img = img.copy()
+    
+    # GLCM parameters
+    distances = [1]
+    angles = [0, np.pi/4, np.pi/2, 3*np.pi/4]
+    
+    texture_features = []
+    
+    for props in regions:
+        # Get region mask and calculate GLCM properties
+        min_row, min_col, max_row, max_col = props.bbox
+        roi = gray_img[min_row:max_row, min_col:max_col]
+        mask = props.image
+        
+        # Skip very small regions where GLCM might not be meaningful
+        if props.area < 20:
+            continue
+        
+        # Extract masked region
+        masked_roi = roi.copy()
+        masked_roi[~mask] = 0
+        
+        # Compute GLCM
+        try:
+            from skimage.feature import graycomatrix, graycoprops
+            
+            # Normalize and quantize the image for GLCM
+            rescaled = exposure.rescale_intensity(masked_roi, out_range=(0, 255))
+            rescaled = rescaled.astype(np.uint8)
+            
+            # Compute GLCM
+            glcm = graycomatrix(rescaled, distances=distances, angles=angles,
+                                symmetric=True, normed=True)
+            
+            # Extract GLCM properties
+            contrast = graycoprops(glcm, 'contrast').mean()
+            dissimilarity = graycoprops(glcm, 'dissimilarity').mean()
+            homogeneity = graycoprops(glcm, 'homogeneity').mean()
+            correlation = graycoprops(glcm, 'correlation').mean()
+            energy = graycoprops(glcm, 'energy').mean()
+            
+            texture_features.append({
