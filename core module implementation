@@ -1,0 +1,189 @@
+"""
+Core functionality for image processing operations.
+
+This module provides fundamental operations for image handling,
+with optimized implementations for various data types and dimensions.
+"""
+
+import numpy as np
+import napari
+from typing import Union, Tuple, Optional, List, Dict, Any
+from skimage import io, filters, morphology, segmentation, measure
+import matplotlib.pyplot as plt
+from pathlib import Path
+
+
+def load_image(path: Union[str, Path], as_float: bool = True) -> np.ndarray:
+    """
+    Load image with intelligent handling of various formats.
+    
+    Parameters
+    ----------
+    path : str or Path
+        Path to the image file
+    as_float : bool, optional
+        Convert to float32 in range [0, 1], by default True
+    
+    Returns
+    -------
+    np.ndarray
+        Loaded image data
+    
+    Notes
+    -----
+    Automatically handles multi-channel and multi-dimensional data,
+    with special considerations for microscopy formats.
+    """
+    img = io.imread(path)
+    
+    # Handle dimensional ordering for various formats
+    if img.ndim > 2 and img.shape[-1] not in (3, 4):  # Not RGB/RGBA
+        if img.shape[0] < img.shape[-1]:  # Likely ZCYX or TCYX
+            img = np.moveaxis(img, 0, -1)
+    
+    if as_float and img.dtype != np.float32:
+        img = img.astype(np.float32)
+        if img.max() > 1.0:
+            img /= 255.0 if img.max() <= 255 else img.max()
+    
+    return img
+
+
+def normalize_image(img: np.ndarray, method: str = 'minmax') -> np.ndarray:
+    """
+    Normalize image data using various methods.
+    
+    Parameters
+    ----------
+    img : np.ndarray
+        Input image
+    method : str
+        Normalization method: 'minmax', 'percentile', 'zscore', or 'adaptive'
+    
+    Returns
+    -------
+    np.ndarray
+        Normalized image
+    """
+    if method == 'minmax':
+        return (img - img.min()) / (img.max() - img.min())
+    elif method == 'percentile':
+        p_low, p_high = np.percentile(img, (1, 99))
+        img_norm = np.clip(img, p_low, p_high)
+        img_norm = (img_norm - p_low) / (p_high - p_low)
+        return img_norm
+    elif method == 'zscore':
+        mean, std = img.mean(), img.std()
+        if std == 0:
+            return np.zeros_like(img)
+        return (img - mean) / std
+    elif method == 'adaptive':
+        # Implement adaptive histogram equalization
+        from skimage import exposure
+        return exposure.equalize_adapthist(img)
+    else:
+        raise ValueError(f"Unknown normalization method: {method}")
+
+
+def extract_features(label_img: np.ndarray, intensity_img: Optional[np.ndarray] = None) -> Dict[int, Dict[str, Any]]:
+    """
+    Extract comprehensive features from labeled objects.
+    
+    Parameters
+    ----------
+    label_img : np.ndarray
+        Labeled image where each object has a unique integer value
+    intensity_img : np.ndarray, optional
+        Original intensity image for intensity-based measurements
+    
+    Returns
+    -------
+    Dict[int, Dict[str, Any]]
+        Dictionary mapping object IDs to their feature dictionaries
+    """
+    # Get region properties
+    props = measure.regionprops(label_img, intensity_img)
+    
+    # Create a comprehensive feature dictionary
+    features = {}
+    for prop in props:
+        obj_id = prop.label
+        features[obj_id] = {
+            # Shape features
+            'area': prop.area,
+            'perimeter': prop.perimeter,
+            'bbox': prop.bbox,
+            'centroid': prop.centroid,
+            'major_axis_length': prop.major_axis_length,
+            'minor_axis_length': prop.minor_axis_length,
+            'orientation': prop.orientation,
+            'eccentricity': prop.eccentricity,
+            'solidity': prop.solidity,
+            'extent': prop.extent,
+            'euler_number': prop.euler_number,
+        }
+        
+        # Add intensity features if intensity image is provided
+        if intensity_img is not None:
+            features[obj_id].update({
+                'mean_intensity': prop.mean_intensity,
+                'min_intensity': prop.min_intensity,
+                'max_intensity': prop.max_intensity,
+                'integrated_intensity': prop.integrated_intensity if hasattr(prop, 'integrated_intensity') else None,
+            })
+    
+    return features
+
+
+def visualize_results(image: np.ndarray, 
+                      labels: Optional[np.ndarray] = None,
+                      contours: bool = True,
+                      features: Optional[Dict] = None,
+                      selected_features: Optional[List[str]] = None) -> napari.Viewer:
+    """
+    Create an interactive napari visualization of processing results.
+    
+    Parameters
+    ----------
+    image : np.ndarray
+        Original or processed image
+    labels : np.ndarray, optional
+        Segmentation labels
+    contours : bool
+        Whether to display contours around objects
+    features : Dict, optional
+        Features dictionary to display in the viewer
+    selected_features : List[str], optional
+        Features to highlight in the visualization
+        
+    Returns
+    -------
+    napari.Viewer
+        Configured napari viewer instance
+    """
+    viewer = napari.Viewer()
+    viewer.add_image(image, name='Image')
+    
+    if labels is not None:
+        label_layer = viewer.add_labels(labels, name='Segmentation')
+        
+        if contours:
+            boundaries = segmentation.find_boundaries(labels, mode='outer')
+            viewer.add_image(boundaries, name='Boundaries', colormap='red', blending='additive')
+    
+    if features and selected_features:
+        # Create a points layer for centroids
+        centroids = np.array([features[obj_id]['centroid'] for obj_id in features])
+        
+        # Create feature text
+        text = {
+            'string': [
+                '\n'.join([f"{feat}: {features[obj_id][feat]:.2f}" 
+                         for feat in selected_features if feat in features[obj_id]])
+                for obj_id in features
+            ]
+        }
+        
+        viewer.add_points(centroids, name='Centroids', size=10, face_color='cyan', text=text)
+    
+    return viewer
