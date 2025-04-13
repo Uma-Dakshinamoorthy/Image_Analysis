@@ -1,0 +1,275 @@
+"""
+Napari plugin for advanced image analysis.
+
+This module implements a napari plugin providing interactive widgets
+for sophisticated image processing tasks.
+"""
+
+import napari
+import numpy as np
+from magicgui import magic_factory
+from napari.layers import Image, Labels
+from typing import Optional, List, Tuple, Dict
+
+# Define custom napari widget for advanced filtering operations
+@magic_factory(
+    auto_call=True,
+    sigma={"widget_type": "FloatSlider", "min": 0.1, "max": 10.0, "step": 0.1, "value": 1.0},
+    method={"choices": ["gaussian", "median", "bilateral", "nlmeans", "anisotropic"]},
+    preserve_range={"widget_type": "CheckBox", "value": True},
+)
+def advanced_filter(
+    image: Image,
+    sigma: float = 1.0,
+    method: str = "gaussian",
+    preserve_range: bool = True,
+) -> Image:
+    """
+    Apply advanced filtering to an image layer with interactive controls.
+    
+    Parameters
+    ----------
+    image : napari.layers.Image
+        Input image layer
+    sigma : float
+        Filter strength/radius
+    method : str
+        Filtering method to apply
+    preserve_range : bool
+        Whether to preserve the original value range
+    
+    Returns
+    -------
+    napari.layers.Image
+        Filtered image as a new layer
+    """
+    from skimage import filters, restoration
+    
+    data = image.data
+    filtered = None
+    
+    if method == "gaussian":
+        filtered = filters.gaussian(data, sigma=sigma, preserve_range=preserve_range)
+    elif method == "median":
+        from scipy import ndimage
+        filtered = ndimage.median_filter(data, size=int(sigma * 2) * 2 + 1)
+    elif method == "bilateral":
+        filtered = restoration.denoise_bilateral(data, sigma_spatial=sigma, sigma_color=0.1, channel_axis=None)
+    elif method == "nlmeans":
+        filtered = restoration.denoise_nl_means(data, patch_size=5, patch_distance=6, h=sigma, channel_axis=None)
+    elif method == "anisotropic":
+        filtered = restoration.denoise_tv_chambolle(data, weight=sigma, multichannel=False)
+    
+    # Keep same contrast settings as original
+    metadata = {
+        'contrast_limits': image.contrast_limits,
+        'colormap': image.colormap.name,
+        'scale': image.scale,
+        'name': f"{image.name}_{method}"
+    }
+    
+    return Image(filtered, **metadata)
+
+
+# Define custom napari widget for segmentation
+@magic_factory(
+    auto_call=True,
+    method={"choices": ["threshold_otsu", "threshold_local", "watershed", "slic"]},
+    threshold={"widget_type": "FloatSlider", "min": 0.0, "max": 1.0, "step": 0.01, "value": 0.5},
+    min_size={"widget_type": "SpinBox", "min": 1, "max": 10000, "step": 10, "value": 50},
+)
+def segment_objects(
+    image: Image,
+    method: str = "threshold_otsu",
+    threshold: float = 0.5,
+    min_size: int = 50,
+) -> Labels:
+    """
+    Segment objects in an image with various methods.
+    
+    Parameters
+    ----------
+    image : napari.layers.Image
+        Input image layer
+    method : str
+        Segmentation method to apply
+    threshold : float
+        Threshold value (normalized between 0 and 1)
+    min_size : int
+        Minimum object size in pixels
+    
+    Returns
+    -------
+    napari.layers.Labels
+        Segmentation result as a labels layer
+    """
+    from skimage import filters, segmentation, morphology
+    
+    data = image.data
+    labels = None
+    
+    # Ensure data is normalized for processing
+    if data.max() > 1.0:
+        normalized = data / data.max()
+    else:
+        normalized = data.copy()
+    
+    if method == "threshold_otsu":
+        thresh = filters.threshold_otsu(normalized)
+        binary = normalized > thresh
+        labels = morphology.remove_small_objects(binary, min_size=min_size)
+        labels = morphology.label(labels)
+    
+    elif method == "threshold_local":
+        thresh = filters.threshold_local(normalized, block_size=35)
+        binary = normalized > thresh
+        labels = morphology.remove_small_objects(binary, min_size=min_size)
+        labels = morphology.label(labels)
+    
+    elif method == "watershed":
+        # Calculate distance transform for watershed
+        from scipy import ndimage
+        
+        # Get binary mask first
+        if threshold == 0:
+            thresh = filters.threshold_otsu(normalized)
+            binary = normalized > thresh
+        else:
+            binary = normalized > threshold
+            
+        # Clean up binary image
+        binary = morphology.remove_small_holes(binary)
+        binary = morphology.binary_closing(binary, morphology.disk(3))
+        
+        # Distance transform and find local maxima
+        distance = ndimage.distance_transform_edt(binary)
+        local_max = morphology.local_maxima(distance)
+        markers = morphology.label(local_max)
+        
+        # Watershed segmentation
+        labels = segmentation.watershed(-distance, markers, mask=binary)
+        
+        # Remove small objects
+        sizes = np.bincount(labels.ravel())
+        mask_sizes = sizes > min_size
+        mask_sizes[0] = 0  # Keep background as 0
+        labels = mask_sizes[labels]
+        labels = morphology.label(labels)
+    
+    elif method == "slic":
+        # SLIC superpixels segmentation
+        segments = segmentation.slic(normalized, n_segments=int(normalized.size / (min_size * 2)), 
+                                     compactness=20, sigma=1, start_label=1)
+        if threshold > 0:
+            # Refine superpixels based on intensity
+            refined = np.zeros_like(segments)
+            for segment_id in range(1, segments.max() + 1):
+                mask = segments == segment_id
+                segment_mean = np.mean(normalized[mask])
+                if segment_mean > threshold:
+                    refined[mask] = segment_id
+            labels = refined
+        else:
+            labels = segments
+    
+    return Labels(labels, name=f"{image.name}_{method}")
+
+
+# Define a widget for feature extraction and analysis
+@magic_factory
+def extract_and_analyze(
+    labels: Labels,
+    image: Image,
+    area_filter: Dict[str, int] = {"min": 10, "max": 10000},
+) -> Tuple[napari.types.LayerDataTuple, napari.types.LayerDataTuple]:
+    """
+    Extract features from segmented objects and visualize analysis.
+    
+    Parameters
+    ----------
+    labels : napari.layers.Labels
+        Segmentation labels
+    image : napari.layers.Image
+        Original image for intensity measurements
+    area_filter : Dict[str, int]
+        Filter objects by area range
+    
+    Returns
+    -------
+    Tuple[napari.types.LayerDataTuple, napari.types.LayerDataTuple]
+        Points layer for measurements and filtered labels layer
+    """
+    from skimage import measure
+    
+    # Extract region properties
+    props = measure.regionprops_table(
+        labels.data, 
+        intensity_image=image.data, 
+        properties=(
+            'label', 'area', 'centroid', 
+            'major_axis_length', 'minor_axis_length',
+            'eccentricity', 'solidity', 'mean_intensity'
+        )
+    )
+    
+    # Filter by area
+    min_area, max_area = area_filter['min'], area_filter['max']
+    valid_labels = np.where((props['area'] >= min_area) & (props['area'] <= max_area))[0]
+    
+    if len(valid_labels) == 0:
+        return None, None
+    
+    # Create filtered labels
+    filtered_labels = np.zeros_like(labels.data)
+    for idx in valid_labels:
+        label_id = props['label'][idx]
+        filtered_labels[labels.data == label_id] = label_id
+    
+    # Create points for measurements
+    points = np.column_stack((
+        props['centroid-0'][valid_labels],
+        props['centroid-1'][valid_labels]
+    ))
+    
+    # Create point properties for visualization
+    point_properties = {
+        'label': props['label'][valid_labels],
+        'area': props['area'][valid_labels],
+        'eccentricity': props['eccentricity'][valid_labels],
+        'mean_intensity': props['mean_intensity'][valid_labels],
+        'size_ratio': props['major_axis_length'][valid_labels] / props['minor_axis_length'][valid_labels]
+    }
+    
+    # Create text annotations
+    text = {
+        'string': [
+            f"ID: {label}\nArea: {area:.1f}\nInt: {intensity:.2f}"
+            for label, area, intensity in zip(
+                point_properties['label'],
+                point_properties['area'],
+                point_properties['mean_intensity']
+            )
+        ],
+        'color': 'green',
+        'size': 8
+    }
+    
+    # Return points and filtered labels
+    points_layer = (points, {'properties': point_properties, 'text': text, 'size': 10, 'face_color': 'green'}, 'points')
+    labels_layer = (filtered_labels, {'name': 'filtered_labels'}, 'labels')
+    
+    return points_layer, labels_layer
+
+
+# Register the widgets with napari
+@napari.plugin_manager.register_dock_widget(name="Advanced Filtering")
+def filtering_widget():
+    return advanced_filter
+
+@napari.plugin_manager.register_dock_widget(name="Segmentation")
+def segmentation_widget():
+    return segment_objects
+
+@napari.plugin_manager.register_dock_widget(name="Analysis")
+def analysis_widget():
+    return extract_and_analyze
