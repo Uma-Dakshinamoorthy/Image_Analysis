@@ -1,0 +1,75 @@
+# Integration Plan: NEUBIAS Modules into Repository
+
+This document outlines the strategy for integrating NEUBIAS training modules into our repository structure while maintaining attribution and enhancing the content.
+
+## 1. Repository Structure Update
+
+```
+image-processing-napari/
+├── ... (existing structure)
+├── learning/
+│   ├── ... (existing learning materials)
+│   └── neubias-modules/          # New directory for NEUBIAS content
+│       └── ... (NEUBIAS modules)
+└── references/
+    └── neubias-originals/        # Links to original NEUBIAS materials
+```
+
+## 2. Integration Approach
+
+### Phase 1: Direct Incorporation
+- Import the essential NEUBIAS modules that align with our learning path
+- Update code to work with our environment and dependencies
+- Add clear attribution to NEUBIAS in each notebook
+
+### Phase 2: Enhancement
+- Add napari-specific functionality to each module
+- Expand examples with additional datasets
+- Create complementary exercises for each module
+
+### Phase 3: Bridge Content
+- Create "bridge" notebooks that connect NEUBIAS modules to our custom content
+- Develop advanced extensions that build upon NEUBIAS fundamentals
+- Cross-reference between our materials and NEUBIAS modules
+
+## 3. Key Module Adaptations
+
+| NEUBIAS Module | Our Adaptation | Enhancements |
+|----------------|----------------|--------------|
+| Introduction to BioImage Analysis | Expanded introduction with napari visualization | Interactive widgets, 3D visualization examples |
+| Image Filtering | Enhanced filtering with performance comparisons | Custom filter implementations, parameter optimization |
+| Segmentation | Extended with modern approaches | Deep learning integration, interactive segmentation tools |
+| Object Analysis | Comprehensive feature extraction | Statistical analysis, visualization of features |
+
+## 4. Implementation Checklist
+
+- [ ] Fork/clone original NEUBIAS materials for reference
+- [ ] Set up proper attribution and licensing notices
+- [ ] Update Python dependencies to match our environment
+- [ ] Adapt code examples for napari compatibility
+- [ ] Create consistent styling across original and new content
+- [ ] Develop transitional content between modules
+- [ ] Update README and documentation to reflect NEUBIAS integration
+
+## 5. Benefits of Integration
+
+1. **Complete Learning Experience**: Combines NEUBIAS's excellent educational structure with our napari-focused tools
+2. **Community Connection**: Acknowledges and builds upon established educational resources
+3. **Broader Coverage**: Expands our repository's scope to include more bioimage-specific techniques
+4. **Educational Continuity**: Provides clear paths from fundamentals to advanced implementations
+
+## 6. Adaptation Guidelines
+
+When adapting NEUBIAS materials:
+- Maintain the pedagogical approach of the original materials
+- Clearly mark our additions and modifications
+- Keep code examples consistent with our style guidelines
+- Ensure all examples run in our recommended environment
+- Add napari visualizations while preserving original functionality
+
+## 7. Timeline
+
+- Week 1: Initial incorporation and compatibility updates
+- Week 2: napari integration and visualization enhancements
+- Week 3: Development of complementary exercises
+- Week 4: Documentation and cross-referencing between modules
