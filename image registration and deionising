@@ -1,0 +1,72 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from skimage import io, color, transform, exposure, restoration, registration, util
+from scipy import ndimage as ndi
+import time
+
+def add_noise_to_image(img, noise_type='gaussian', var=0.01, amount=0.1):
+    """Add different types of noise to an image for testing denoising methods."""
+    if img.ndim == 3 and img.shape[2] == 3:
+        # Convert to grayscale for simplicity in noise addition
+        gray_img = color.rgb2gray(img)
+    else:
+        gray_img = img.copy()
+    
+    # Ensure image is float
+    if gray_img.dtype != np.float64:
+        gray_img = gray_img.astype(np.float64)
+    
+    # Different noise types
+    if noise_type == 'gaussian':
+        noisy_img = util.random_noise(gray_img, mode='gaussian', var=var)
+    elif noise_type == 'salt_pepper':
+        noisy_img = util.random_noise(gray_img, mode='s&p', amount=amount)
+    elif noise_type == 'poisson':
+        noisy_img = util.random_noise(gray_img, mode='poisson')
+    elif noise_type == 'speckle':
+        noisy_img = util.random_noise(gray_img, mode='speckle', var=var)
+    else:
+        raise ValueError("Unknown noise type. Choose from 'gaussian', 'salt_pepper', 'poisson', 'speckle'")
+    
+    return noisy_img
+
+def apply_denoising_methods(noisy_img):
+    """Apply different denoising methods and compare results."""
+    # List to store denoised images and method names
+    denoised_images = []
+    method_names = []
+    
+    # Track execution time
+    times = []
+    
+    # Method 1: Gaussian filter
+    start = time.time()
+    gaussian_denoised = ndi.gaussian_filter(noisy_img, sigma=1)
+    times.append(time.time() - start)
+    denoised_images.append(gaussian_denoised)
+    method_names.append('Gaussian Filter')
+    
+    # Method 2: Median filter
+    start = time.time()
+    median_denoised = ndi.median_filter(noisy_img, size=3)
+    times.append(time.time() - start)
+    denoised_images.append(median_denoised)
+    method_names.append('Median Filter')
+    
+    # Method 3: Bilateral filter
+    try:
+        from skimage.restoration import denoise_bilateral
+        start = time.time()
+        bilateral_denoised = denoise_bilateral(noisy_img, sigma_color=0.1, sigma_spatial=1)
+        times.append(time.time() - start)
+        denoised_images.append(bilateral_denoised)
+        method_names.append('Bilateral Filter')
+    except Exception as e:
+        print(f"Bilateral filter error: {e}")
+    
+    # Method 4: Non-local means
+    try:
+        from skimage.restoration import denoise_nl_means
+        start = time.time()
+        nlm_denoised = denoise_nl_means(noisy_img, patch_size=5, patch_distance=6, h=0.1, fast_mode=True)
+        times.append(time.time
