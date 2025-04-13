@@ -1,0 +1,77 @@
+# NEUBIAS Training Modules Integration
+
+This directory contains adaptations and extensions of the excellent NEUBIAS Training Resources for bioimage analysis. The original modules can be found at [NEUBIAS Training Resources](https://neubias.github.io/training-resources/all-modules/).
+
+## Directory Structure
+
+```
+neubias-modules/
+├── README.md                                  # This file - overview and credits
+├── introductory/
+│   ├── pixels_and_images.md                   # Introduction to digital images
+│   ├── image_display.ipynb                    # Image visualization techniques
+│   └── pixel_inspection.ipynb                 # Pixel value analysis
+├── preprocessing/
+│   ├── binarization.ipynb                     # Thresholding methods
+│   ├── noise_filtering.ipynb                  # Denoising approaches
+│   └── background_correction.ipynb            # Background estimation and removal
+├── segmentation/
+│   ├── connected_components.ipynb             # Basic object identification
+│   ├── semantic_segmentation.ipynb            # Pixel classification methods
+│   └── instance_segmentation.ipynb            # Object instance separation
+├── feature_extraction/
+│   ├── intensity_measurements.ipynb           # Quantifying signal intensity
+│   ├── shape_descriptors.ipynb                # Morphological measurements
+│   └── texture_analysis.ipynb                 # Pattern and texture features
+├── workflows/
+│   ├── cell_counting.ipynb                    # Complete cell detection workflow
+│   ├── timelapse_tracking.ipynb               # Temporal object tracking
+│   └── colocalization_analysis.ipynb          # Multi-channel correlation analysis
+└── data/
+    └── neubias_samples/                       # Sample images from NEUBIAS
+```
+
+## Attribution and License
+
+These materials are adapted from the [NEUBIAS Training Resources](https://neubias.github.io/training-resources/all-modules/) with appropriate modifications and extensions. The original materials are provided under a [CC-BY 4.0 license](https://creativecommons.org/licenses/by/4.0/), and our adaptations maintain this license.
+
+Please cite the original NEUBIAS Training Resources when using these materials:
+
+```
+@misc{NEUBIASTrainingResources,
+  author = {{NEUBIAS}},
+  title = {NEUBIAS Training Resources},
+  year = {2020},
+  publisher = {GitHub},
+  url = {https://neubias.github.io/training-resources/}
+}
+```
+
+## How These Modules Are Integrated
+
+The original NEUBIAS modules have been carefully integrated into our learning path with the following enhancements:
+
+1. **napari Integration**: All modules have been updated to work with napari for visualization
+2. **Code Modernization**: Python code has been updated to use current best practices and library versions
+3. **Extended Exercises**: Additional practice problems have been added to reinforce concepts
+4. **Complementary Content**: Our original content complements these modules by covering additional topics
+
+## Module Dependencies
+
+Each module specifies its prerequisites, but in general you'll need:
+
+- Python 3.8+
+- numpy
+- scikit-image
+- scipy
+- napari
+- matplotlib
+- pandas (for some data analysis modules)
+
+## Using These Modules
+
+These modules can be used:
+
+1. As standalone tutorials (each notebook is self-contained)
+2. As part of the complete learning path (following our recommended sequence)
+3. As reference material for specific techniques
