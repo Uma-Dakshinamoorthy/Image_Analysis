@@ -1,0 +1,124 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from skimage import io, filters, feature, color, exposure, morphology, segmentation
+from scipy import ndimage as ndi
+
+def load_and_display_image(image_path):
+    """Load and display an image with matplotlib."""
+    img = io.imread(image_path)
+    plt.figure(figsize=(8, 8))
+    
+    if img.ndim == 3 and img.shape[2] == 3:  # RGB image
+        plt.imshow(img)
+    else:  # Grayscale image
+        plt.imshow(img, cmap='gray')
+    
+    plt.axis('off')
+    plt.title('Original Image')
+    plt.tight_layout()
+    plt.show()
+    return img
+
+def basic_image_info(img):
+    """Print basic information about an image."""
+    print(f"Image shape: {img.shape}")
+    print(f"Image data type: {img.dtype}")
+    print(f"Min value: {img.min()}")
+    print(f"Max value: {img.max()}")
+    print(f"Mean value: {img.mean():.2f}")
+    
+    if img.ndim == 3 and img.shape[2] == 3:
+        print("Image type: RGB")
+    elif img.ndim == 2:
+        print("Image type: Grayscale")
+    else:
+        print(f"Image type: Other ({img.ndim} dimensions)")
+
+def convert_to_grayscale(img):
+    """Convert RGB image to grayscale if needed."""
+    if img.ndim == 3 and img.shape[2] == 3:
+        return color.rgb2gray(img)
+    return img
+
+def enhance_contrast(img):
+    """Enhance contrast using histogram equalization."""
+    if img.ndim == 3:
+        # For RGB images, convert to LAB and equalize L channel
+        lab = color.rgb2lab(img)
+        lab[:,:,0] = exposure.equalize_hist(lab[:,:,0]) * 100
+        return color.lab2rgb(lab)
+    else:
+        # For grayscale
+        return exposure.equalize_hist(img)
+
+def apply_filters(img):
+    """Apply different filters and display the results."""
+    gray_img = convert_to_grayscale(img)
+    
+    # Different filters
+    gaussian = filters.gaussian(gray_img, sigma=2)
+    median = filters.median(gray_img)
+    sobel = filters.sobel(gray_img)
+    
+    # Plot results
+    fig, axes = plt.subplots(2, 2, figsize=(10, 10))
+    ax = axes.ravel()
+    
+    ax[0].imshow(gray_img, cmap='gray')
+    ax[0].set_title('Original Grayscale')
+    
+    ax[1].imshow(gaussian, cmap='gray')
+    ax[1].set_title('Gaussian Filter (σ=2)')
+    
+    ax[2].imshow(median, cmap='gray')
+    ax[2].set_title('Median Filter')
+    
+    ax[3].imshow(sobel, cmap='gray')
+    ax[3].set_title('Sobel Edge Detection')
+    
+    for a in ax:
+        a.axis('off')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return gaussian, median, sobel
+
+def segment_image(img):
+    """Basic image segmentation using thresholding."""
+    gray_img = convert_to_grayscale(img)
+    
+    # Try different thresholding methods
+    thresh_otsu = gray_img > filters.threshold_otsu(gray_img)
+    thresh_local = gray_img > filters.threshold_local(gray_img, block_size=35)
+    
+    # Watershed segmentation
+    edges = filters.sobel(gray_img)
+    markers = np.zeros_like(gray_img, dtype=int)
+    markers[gray_img < 0.2] = 1  # Background
+    markers[gray_img > 0.8] = 2  # Foreground
+    watershed = segmentation.watershed(edges, markers)
+    
+    # Plot results
+    fig, axes = plt.subplots(2, 2, figsize=(10, 10))
+    ax = axes.ravel()
+    
+    ax[0].imshow(gray_img, cmap='gray')
+    ax[0].set_title('Original Grayscale')
+    
+    ax[1].imshow(thresh_otsu, cmap='gray')
+    ax[1].set_title('Otsu Thresholding')
+    
+    ax[2].imshow(thresh_local, cmap='gray')
+    ax[2].set_title('Local Thresholding')
+    
+    ax[3].imshow(watershed, cmap='nipy_spectral')
+    ax[3].set_title('Watershed Segmentation')
+    
+    for a in ax:
+        a.axis('off')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return thresh_otsu, thresh_l
